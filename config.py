@@ -25,7 +25,7 @@ class Config:
     
     # Analytics defaults
     DEFAULT_TIMEFRAME = os.getenv("DEFAULT_TIMEFRAME", "1s")
-    DEFAULT_ROLLING_WINDOW = int(os.getenv("DEFAULT_ROLLING_WINDOW", "20"))
+    DEFAULT_ROLLING_WINDOW = int(os.getenv("DEFAULT_ROLLING_WINDOW", "10"))
     
     # Cleanup settings
     DATA_RETENTION_HOURS = int(os.getenv("DATA_RETENTION_HOURS", "24"))

@@ -39,12 +39,18 @@ st.markdown("""
     
     .stApp {
         background: #0a0a0f;
+        background-color: #0a0a0f;  /* Fallback */
         background-image: 
             radial-gradient(ellipse at top, rgba(29, 78, 137, 0.15) 0%, transparent 50%),
             radial-gradient(ellipse at bottom right, rgba(99, 102, 241, 0.1) 0%, transparent 50%),
             radial-gradient(ellipse at bottom left, rgba(16, 185, 129, 0.08) 0%, transparent 50%);
         background-attachment: fixed;
         min-height: 100vh;
+    }
+    
+    /* Force dark background on main container to prevent white flash */
+    [data-testid="stAppViewContainer"] {
+        background-color: #0a0a0f;
     }
     
     .main .block-container {
@@ -517,7 +523,7 @@ def show_landing_page():
     st.markdown("""
     <div style="text-align: center; padding: 20px 20px 40px;">
         <div style="display: inline-block; background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(16, 185, 129, 0.2)); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 20px; padding: 6px 16px; font-size: 0.75rem; color: #a5b4fc; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 24px;">Quantitative Trading Tools</div>
-        <h1 style="font-size: 3.2rem; font-weight: 800; background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 50%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 20px; line-height: 1.1; letter-spacing: -1px;">Crypto Analytics<br>Platform</h1>
+        <h1 style="font-size: 3.2rem; font-weight: 800; background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 50%, #10b981 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 20px; line-height: 1.1; letter-spacing: -1px;">Binance Analytics<br>Platform</h1>
         <p style="font-size: 1.15rem; color: #8899a6; margin-bottom: 30px; max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.6; text-align: center;">
             Professional-grade tools for real-time market data collection, 
             statistical arbitrage analysis, and algorithmic trading backtesting.
@@ -635,7 +641,7 @@ def show_dashboard():
             st.session_state.page = 'landing'
             st.rerun()
     with col2:
-        st.markdown('<h1 class="main-header">Quantitative Analytics Platform</h1>', unsafe_allow_html=True)
+        st.markdown('<h1 class="main-header">Binance Analytics Platform</h1>', unsafe_allow_html=True)
     with col3:
         pass  # Can add other nav items here
     
@@ -703,8 +709,8 @@ def show_dashboard():
         # Analytics settings
         st.markdown("### Analytics Settings")
         timeframe = st.selectbox("Timeframe", ['1s', '5s', '10s', '30s', '1min', '5min'], index=0)
-        rolling_window = st.slider("Rolling Window", 5, 100, 20)
-        regression_method = st.radio("Regression", ['ols', 'huber'])
+        rolling_window = st.slider("Rolling Window", 5, 100, Config.DEFAULT_ROLLING_WINDOW)
+        regression_method = st.radio("Regression", ['ols', 'huber', 'kalman', 'rolling', 'tls'])
         
         st.markdown("---")
         
@@ -1043,14 +1049,39 @@ def show_dashboard():
             p2 = p2.loc[common_idx]
             
             if len(p1) > rolling_window:
-                hr, intercept = Analytics.calculate_hedge_ratio(p1, p2, regression_method)
-                st.info(f"**Hedge Ratio ({regression_method.upper()}):** {hr:.4f} | **Intercept:** {intercept:.4f}")
+                hr, intercept = Analytics.calculate_hedge_ratio(p1, p2, regression_method, window=rolling_window)
+                
+                # Handle dynamic hedge ratio display
+                if isinstance(hr, pd.Series):
+                    display_hr = hr.iloc[-1]
+                    display_int = intercept.iloc[-1] if isinstance(intercept, pd.Series) else intercept
+                    st.info(f"**Hedge Ratio ({regression_method.upper()}):** {display_hr:.4f} (Dynamic) | **Intercept:** {display_int:.4f}")
+                else:
+                    st.info(f"**Hedge Ratio ({regression_method.upper()}):** {hr:.4f} | **Intercept:** {intercept:.4f}")
                 
                 spread = Analytics.calculate_spread(p1, p2, hr)
                 zscore = Analytics.calculate_zscore(spread, rolling_window)
                 
                 fig = create_spread_chart(spread, zscore, s1, s2)
                 st.plotly_chart(fig)
+                
+                # Export Analytics Data
+                analytics_df = pd.DataFrame({
+                    'timestamp': spread.index,
+                    'price1': p1.values,
+                    'price2': p2.values,
+                    'spread': spread.values,
+                    'zscore': zscore.values
+                })
+                
+                csv_analytics = analytics_df.to_csv(index=False)
+                st.download_button(
+                    label="Download Analytics Data (CSV)",
+                    data=csv_analytics,
+                    file_name=f"pair_analytics_{s1}_{s2}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    key="download_analytics"
+                )
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
@@ -1068,7 +1099,7 @@ def show_dashboard():
                 fig_corr = create_rolling_correlation_chart(rcorr, s1, s2, rolling_window)
                 st.plotly_chart(fig_corr)
             else:
-                st.warning(f"Need at least {rolling_window} data points")
+                st.warning(f"Not enough data points yet. Need {rolling_window}, but only have {len(p1)}. Please wait...")
         else:
             st.info("Add at least 2 symbols for pair analytics")
     
@@ -1094,7 +1125,7 @@ def show_dashboard():
             p2 = p2.loc[common_idx]
             
             if len(p1) > rolling_window:
-                hr, _ = Analytics.calculate_hedge_ratio(p1, p2, regression_method)
+                hr, _ = Analytics.calculate_hedge_ratio(p1, p2, regression_method, window=rolling_window)
                 spread = Analytics.calculate_spread(p1, p2, hr)
                 zscore = Analytics.calculate_zscore(spread, rolling_window)
                 
@@ -1130,8 +1161,17 @@ def show_dashboard():
                 if not trades_df.empty:
                     st.subheader("Trade Log")
                     st.dataframe(trades_df)
+                    
+                    csv_trades = trades_df.to_csv(index=False)
+                    st.download_button(
+                        label="Download Trade Log (CSV)",
+                        data=csv_trades,
+                        file_name=f"backtest_trades_{s1}_{s2}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        key="download_trades"
+                    )
             else:
-                st.warning(f"Need at least {rolling_window} data points")
+                st.warning(f"Not enough data points yet. Need {rolling_window}, but only have {len(p1)}. Please wait...")
         else:
             st.info("Select two different symbols to run backtest")
     
@@ -1175,8 +1215,9 @@ def show_dashboard():
             st.info("No data available for statistics")
     
     with tab6:
-        st.header("Recent Tick Data")
+        st.header("Data Management")
         
+        st.subheader("Raw Tick Data")
         col1, col2, col3 = st.columns([2, 1, 1])
         with col1:
             table_symbol = st.selectbox("Filter by Symbol", ["All"] + [s.upper() for s in symbols], key="table_symbol")
@@ -1193,6 +1234,30 @@ def show_dashboard():
                 df = df.sort_values('timestamp')
             
             st.dataframe(df, hide_index=True)
+            
+            st.markdown("### Export Data")
+            col_d1, col_d2 = st.columns(2)
+            
+            with col_d1:
+                csv = df.to_csv(index=False)
+                st.download_button(
+                    label="Download Raw Ticks (CSV)",
+                    data=csv,
+                    file_name=f"ticks_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                    mime="text/csv",
+                    key="download_ticks_tab"
+                )
+            
+            with col_d2:
+                if not df_resampled.empty:
+                    csv_ohlc = df_resampled.to_csv(index=False)
+                    st.download_button(
+                        label="Download OHLC Analytics (CSV)",
+                        data=csv_ohlc,
+                        file_name=f"analytics_ohlc_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                        mime="text/csv",
+                        key="download_ohlc_tab"
+                    )
             
             st.markdown("### Table Summary")
             cols = st.columns(4)

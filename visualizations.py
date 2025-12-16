@@ -281,7 +281,7 @@ def create_single_ohlc_chart(df: pd.DataFrame, symbol: str, show_volume: bool = 
     
     # Layout
     fig.update_layout(
-        title=f"{symbol.upper()}",
+        title=dict(text=f"{symbol.upper()} Price (USD)", font=dict(color='#FFFFFF')),
         height=450,
         template='plotly_dark',
         paper_bgcolor=COLORS['background'],
@@ -289,18 +289,24 @@ def create_single_ohlc_chart(df: pd.DataFrame, symbol: str, show_volume: bool = 
         font=dict(color=COLORS['text'], family='Inter, sans-serif'),
         xaxis_rangeslider_visible=False,
         showlegend=False,
-        margin=dict(l=50, r=50, t=50, b=30),
+        margin=dict(l=50, r=50, t=50, b=50),  # Increase bottom margin for footer
     )
     
     # Update axes with calculated ranges - FORCE the Y range
     if x_range:
         fig.update_xaxes(range=x_range, gridcolor=COLORS['grid'])
     
-    # Explicitly set tight Y-axis range
+    # Explicitly set tight Y-axis range ONLY for the Price subplot (row 1)
     if y_range:
-        fig.update_yaxes(range=y_range, gridcolor=COLORS['grid'], autorange=False, fixedrange=False)
+        fig.update_yaxes(range=y_range, row=1, col=1, gridcolor=COLORS['grid'], autorange=False, fixedrange=False)
     else:
-        fig.update_yaxes(gridcolor=COLORS['grid'], autorange=True)
+        fig.update_yaxes(gridcolor=COLORS['grid'], autorange=True, row=1, col=1)
+    
+    # Ensure Volume subplot (row 2) is auto-scaled with title
+    if show_volume:
+        fig.update_yaxes(title_text="Volume", gridcolor=COLORS['grid'], autorange=True, row=2, col=1)
+        # Add a footer-like annotation for Volume if needed, or rely on axis title
+        # Axis title "Volume" on the secondary plot is standard.
     
     return fig
 

@@ -1,4 +1,4 @@
-# Crypto Analytics Platform
+# Binance Analytics Platform
 
 A professional-grade quantitative analytics platform for real-time crypto market data collection, statistical arbitrage analysis, and algorithmic trading backtesting.
 
@@ -18,23 +18,28 @@ A professional-grade quantitative analytics platform for real-time crypto market
 - **Multiple Timeframes** - 1s, 5s, 10s, 30s, 1min, 5min with volume aggregation
 
 ### Pair Trading Analytics
-- **Hedge Ratio & Spread** - OLS/Huber regression with real-time spread computation
-- **Z-Score & Cointegration** - Rolling z-score and ADF stationarity testing
+- **Hedge Ratio** - Multiple regression methods:
+  - **Kalman Filter** - Dynamic, time-varying hedge ratio
+  - **Rolling OLS** - Moving window regression
+  - **TLS (Total Least Squares)** - Orthogonal regression
+  - **Huber/OLS** - Robust and standard linear regression
+- **Spread & Z-Score** - Real-time spread computation with rolling z-score
+- **Stationarity** - Augmented Dickey-Fuller (ADF) test
 
 ### Visualization Dashboard
 - **Interactive Charts** - OHLC candlesticks, spread/z-score plots, correlation heatmaps
-- **Dark Theme UI** - Professional aesthetic with Plotly visualizations
+- **Efficient UI** - Clean interface with Plotly visualizations
+- **Volume Visualization** - Separate volume indicators with clear axis labels
 
 ### Backtesting Engine
 - **Mean-Reversion Strategy** - Z-score based entry/exit with configurable thresholds
-- **Trade Log & Metrics** - Detailed P&L tracking with win rate statistics
+- **Trade Log & Metrics** - Detailed P&L tracking, win rate, and CSV export
+- **Visual Backtest** - Entry/exit markers overlaid on spread chart
 
-### Portfolio & P&L Tracker
-- **Paper Trading** - Simulate LONG/SHORT positions with real-time P&L
-- **Trade History** - Complete log with performance tracking
-
-### Alert System
-- **Price & Z-Score Alerts** - Threshold-based notifications for trading signals
+### Data Management
+- **Export Capabilities** - Download raw ticks, OHLC analytics, and trade logs as CSV
+- **OHLC Aggregation** - Real-time conversion of ticks to candles
+- **Detailed Statistics** - Time series statistics and price distribution analysis
 
 ---
 
@@ -53,8 +58,8 @@ crypto-analytics-platform/
 ├── database.py         # SQLite data storage layer
 ├── collector.py        # WebSocket data ingestion
 ├── data_feed.py        # Abstract data feed interface
-├── analytics.py        # Quantitative analytics module
-├── visualizations.py   # Chart generation functions
+├── analytics.py        # Quantitative analytics module (Kalman, Rolling OLS, Backtest)
+├── visualizations.py   # Chart generation functions (Dark theme optimized)
 ├── requirements.txt    # Python dependencies
 └── crypto_ticks.db     # SQLite database (auto-created)
 ```
@@ -120,13 +125,13 @@ The application will open in your browser at `http://localhost:8501`
 
 ### Quick Start
 
-1. **Launch Dashboard** - Click the button on the landing page
-2. **Configure Symbols** - Enter trading pairs (e.g., `btcusdt,ethusdt`)
-3. **Start Collection** - Click "Start" to begin streaming data
-4. **Wait for Data** - Allow 1-2 minutes for candles to form
-5. **Analyze** - Navigate through tabs to view analytics
+1. **Launch Dashboard** - Click "Start" in the sidebar
+2. **Configure Symbols** - Default pairs (BTCUSDT, ETHUSDT) are pre-loaded
+3. **Analyze** - Switch tabs for Dashboard, Charts, Pair Analytics, and Backtesting
+4. **Export Data** - Go to "Data Management" tab to download CSVs
+5. **Advanced Regression** - In sidebar "Analytics Settings", choose 'kalman', 'rolling', etc.
 
-> **Recommendation:** Charts are best viewed after stopping data collection. During live streaming, the auto-refresh (every 3 seconds) causes the chart to re-render continuously, which may affect visual stability. Once collection stops, the chart displays a fixed dataset with smooth interactions.
+> **Recommendation:** For heavy data downloading, stop the data collection first to ensure the file download isn't interrupted by the live refresh cycle.
 
 ### Configuration
 
@@ -160,56 +165,17 @@ I also took help of the AI to debug the code and optimize the code.
 
 6. *"Getting these errors in backtesting. It uses mean reversion strategy, please don't change that."*
 
+7. *"Can also add kalman regression into this code alongwith other regressions as well please"*
+
 ### LLMs Used
 
-- **Claude Opus 4.5 (Thinking) on Google Antigravity for Backend Debugging and Optimizations.** 
-- **SWE-1 on Windsurf for minor UI Adjustments** 
-- **Gemini-3 for Planning and Project Understanding.**
+- **Claude Opus 4.5 (Thinking) on Google Antigravity:** Backend Debugging, Optimizations, Advanced Analytics (Kalman Filter, Rolling OLS).
+- **SWE-1 on Windsurf:** Minor UI Adjustments.
+- **Gemini-3:** Planning and Project Understanding.
 
 ---
 
 ## Module Documentation
-
-### `config.py`
-Centralized configuration with environment variable support.
-
-```python
-from config import Config
-
-Config.DB_PATH           # Database file path
-Config.BINANCE_WS_BASE   # WebSocket base URL
-Config.BUFFER_SIZE       # Tick buffer size (10000)
-Config.BATCH_SIZE        # Database batch size (100)
-Config.REFRESH_INTERVAL  # UI refresh rate (3000ms)
-```
-
-### `data_feed.py`
-Abstract base class for pluggable data sources.
-
-```python
-from data_feed import DataFeed, CSVDataFeed, RESTDataFeed
-
-# CSV feed for backtesting
-feed = CSVDataFeed("historical_data.csv")
-feed.set_callback(handler)
-feed.connect(["btcusdt"])
-
-# REST API polling
-feed = RESTDataFeed("https://api.example.com", poll_interval=1.0)
-```
-
-### `collector.py`
-WebSocket collector implementing `DataFeed` interface.
-
-```python
-from collector import BatchTickCollector
-
-collector = BatchTickCollector()
-collector.set_callback(save_tick)
-collector.start(["btcusdt", "ethusdt"])
-# ... later
-collector.stop()
-```
 
 ### `analytics.py`
 Quantitative analysis functions.
@@ -220,14 +186,8 @@ from analytics import Analytics
 # Resample ticks to OHLC
 ohlc_df = Analytics.resample_ohlcv(tick_df, "1min")
 
-# Calculate hedge ratio
-ratio, intercept = Analytics.calculate_hedge_ratio(price1, price2, method="ols")
-
-# Calculate z-score
-zscore = Analytics.calculate_zscore(spread, window=20)
-
-# Run ADF test
-result = Analytics.adf_test(spread)
+# Calculate hedge ratio (supports 'kalman', 'rolling', 'tls', 'ols', 'huber')
+ratio, intercept = Analytics.calculate_hedge_ratio(price1, price2, method="kalman")
 
 # Backtest strategy
 trades_df, positions = Analytics.backtest_mean_reversion(spread, zscore, entry_th=2.0)

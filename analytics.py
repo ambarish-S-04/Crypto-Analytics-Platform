@@ -106,32 +106,116 @@ class Analytics:
     
     @staticmethod
     def calculate_hedge_ratio(price1: pd.Series, price2: pd.Series, 
-                             method: str = 'ols') -> tuple[float, float]:
+                             method: str = 'ols', window: int = 20) -> tuple:
         """
         Calculate hedge ratio between two price series
         
         Args:
-            price1: First price series
-            price2: Second price series
-            method: 'ols' or 'huber' regression
+            price1: First price series (independent variable X)
+            price2: Second price series (dependent variable Y)
+            method: 'ols', 'huber', 'rolling', 'kalman', 'tls'
+            window: Window size for rolling OLS
         
         Returns:
-            (hedge_ratio, intercept)
+            (hedge_ratio, intercept) - scalars (latest value) OR Series if supported
         """
         if len(price1) < 2 or len(price2) < 2:
             return 1.0, 0.0
         
         try:
-            X = price1.values.reshape(-1, 1)
+            X = price1.values
             y = price2.values
             
-            model = HuberRegressor() if method == 'huber' else LinearRegression()
-            model.fit(X, y)
+            if method == 'kalman':
+                # Kalman Filter Implementation
+                # State: [beta, alpha]
+                # Observation: y = beta*x + alpha + noise
+                
+                delta = 1e-5
+                trans_cov = delta / (1 - delta) * np.eye(2)
+                
+                # Initial state
+                state_mean = np.zeros(2)
+                state_cov = np.ones((2, 2))
+                
+                betas = []
+                alphas = []
+                
+                for i in range(len(X)):
+                    # Observation matrix H = [x, 1]
+                    H = np.array([X[i], 1.0])
+                    
+                    # Prediction step (Random Walk)
+                    # x_pred = x_prev
+                    # P_pred = P_prev + Q
+                    P_pred = state_cov + trans_cov
+                    
+                    # Measurement step
+                    # y_pred = H * x_pred
+                    y_pred = np.dot(H, state_mean)
+                    res = y[i] - y_pred
+                    
+                    # Innovation covariance S = H P H.T + R
+                    S = np.dot(H, np.dot(P_pred, H.T)) + 1e-3
+                    
+                    # Kalman Gain K = P H.T S^-1
+                    K = np.dot(P_pred, H.T) / S
+                    
+                    # Update state
+                    state_mean = state_mean + K * res
+                    
+                    # Update covariance P = (I - K H) P
+                    state_cov = P_pred - np.outer(K, H) * P_pred
+                    
+                    betas.append(state_mean[0])
+                    alphas.append(state_mean[1])
+                
+                # Return Series for dynamic calculation
+                return pd.Series(betas, index=price1.index), pd.Series(alphas, index=price1.index)
+                
+            elif method == 'rolling':
+                # Rolling OLS using pandas
+                df = pd.DataFrame({'y': y, 'x': X}, index=price1.index)
+                
+                # Calculate rolling covariance and variance
+                cov = df['x'].rolling(window=window).cov(df['y'])
+                var = df['x'].rolling(window=window).var()
+                
+                beta = cov / var
+                alpha = df['y'].rolling(window=window).mean() - beta * df['x'].rolling(window=window).mean()
+                
+                return beta.fillna(method='bfill').fillna(0), alpha.fillna(method='bfill').fillna(0)
             
-            return float(model.coef_[0]), float(model.intercept_)
+            elif method == 'tls':
+                # Total Least Squares (Orthogonal Regression)
+                # PCA approach
+                C = np.cov(X, y)
+                # Eigen decomposition
+                vals, vecs = np.linalg.eigh(C)
+                # Smallest eigenvalue corresponds to normal vector of best fit line
+                # Normal vector n = [a, b], line: ax + by + c = 0 -> y = -(a/b)x - c/b
+                # Here we want y = beta*x + alpha
+                
+                # The normal vector corresponds to the smallest eigenvalue
+                # vecs are [ [x_comp_1, x_comp_2], [y_comp_1, y_comp_2] ]
+                # but numpy returns vecs as columns
+                
+                v = vecs[:, 0] # Eigenvector for smallest eigenvalue
+                beta = -v[0] / v[1]
+                alpha = np.mean(y) - beta * np.mean(X)
+                
+                return float(beta), float(alpha)
+                
+            else:
+                # Standard OLS or Huber
+                X_r = X.reshape(-1, 1)
+                model = HuberRegressor() if method == 'huber' else LinearRegression()
+                model.fit(X_r, y)
+                
+                return float(model.coef_[0]), float(model.intercept_)
         
         except Exception as e:
-            print(f"Error calculating hedge ratio: {e}")
+            print(f"Error calculating hedge ratio ({method}): {e}")
             return 1.0, 0.0
     
     @staticmethod
