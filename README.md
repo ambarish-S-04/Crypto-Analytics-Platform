@@ -4,7 +4,6 @@ A professional-grade quantitative analytics platform for real-time crypto market
 
 ![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.28+-red.svg)
-![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 ---
 
@@ -81,8 +80,8 @@ crypto-analytics-platform/
 
 ```bash
 # Clone repository
-git clone <repository-url>
-cd crypto-analytics-platform
+git clone https://github.com/ambarish-S-04/Crypto-Analytics-Platform.git
+cd Crypto-Analytics-Platform
 
 # Create virtual environment (recommended)
 python -m venv venv
@@ -106,32 +105,6 @@ scipy>=1.11.0
 statsmodels>=0.14.0
 scikit-learn>=1.3.0
 ```
-
----
-
-## AI Usage
-
-I also took help of the AI to debug the code and optimize the code.
-
-### Major Prompts Used during Developement
-
-1. *"Help me with chart organization structure on the UI. Currently it is shifting towards right of the page and going blank."*
-
-2. *"Please go through the collectors.py and database.py and check why I have inconsistency on the database and UI dashboard."*
-
-3. *"Replace slow loading components with fast rendering components wherever possible to load the UI well."*
-
-4. *"Why am I getting a z-score error for multiple values? Check visualizations.py and collector.py and don't change the UI analytics."*
-
-5. *"How to remove goliath vs david correlation between bitcoin and ethereum candlestick chart as both are too far apart."*
-
-6. *"Getting these errors in backtesting. It uses mean reversion strategy, please don't change that."*
-
-### LLMs Used
-
-- **Claude Opus 4.5 (Thinking) on Google Antigravity for Backend Debugging and Optimizations.** 
-- **SWE-1 on Windsurf for minor UI Adjustments** 
-- **Gemini-3 for Planning and Project Understanding.**
 
 ---
 
@@ -166,6 +139,32 @@ set REFRESH_INTERVAL=5000
 set DEFAULT_TIMEFRAME=1min
 streamlit run app.py
 ```
+
+---
+
+## AI Usage
+
+I also took help of the AI to debug the code and optimize the code.
+
+### Major Prompts Used during Developement
+
+1. *"Help me with chart organization structure on the UI. Currently it is shifting towards right of the page and going blank."*
+
+2. *"Please go through the collectors.py and database.py and check why I have inconsistency on the database and UI dashboard."*
+
+3. *"Replace slow loading components with fast rendering components wherever possible to load the UI well."*
+
+4. *"Why am I getting a z-score error for multiple values? Check visualizations.py and collector.py and don't change the UI analytics."*
+
+5. *"How to remove goliath vs david correlation between bitcoin and ethereum candlestick chart as both are too far apart."*
+
+6. *"Getting these errors in backtesting. It uses mean reversion strategy, please don't change that."*
+
+### LLMs Used
+
+- **Claude Opus 4.5 (Thinking) on Google Antigravity for Backend Debugging and Optimizations.** 
+- **SWE-1 on Windsurf for minor UI Adjustments** 
+- **Gemini-3 for Planning and Project Understanding.**
 
 ---
 
