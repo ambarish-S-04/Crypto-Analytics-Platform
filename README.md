@@ -153,6 +153,8 @@ The application will open in your browser at `http://localhost:8501`
 4. **Wait for Data** - Allow 1-2 minutes for candles to form
 5. **Analyze** - Navigate through tabs to view analytics
 
+> **Recommendation:** Charts are best viewed after stopping data collection. During live streaming, the auto-refresh (every 3 seconds) causes the chart to re-render continuously, which may affect visual stability. Once collection stops, the chart displays a fixed dataset with smooth interactions.
+
 ### Configuration
 
 Override settings via environment variables:
