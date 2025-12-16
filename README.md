@@ -78,6 +78,10 @@ crypto-analytics-platform/
 | **Extensibility** | Add new analytics/charts without modifying existing code |
 | **Configuration** | Centralized `config.py` with environment variable support |
 
+### System Flowchart
+
+![Architecture Flowchart](architecture_flowchart.png)
+
 ---
 
 ## Installation
