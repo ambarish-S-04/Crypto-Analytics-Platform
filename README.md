@@ -109,6 +109,32 @@ scikit-learn>=1.3.0
 
 ---
 
+## AI Usage
+
+I also took help of the AI to debug the code and optimize the code.
+
+### Major Prompts Used during Developement
+
+1. *"Help me with chart organization structure on the UI. Currently it is shifting towards right of the page and going blank."*
+
+2. *"Please go through the collectors.py and database.py and check why I have inconsistency on the database and UI dashboard."*
+
+3. *"Replace slow loading components with fast rendering components wherever possible to load the UI well."*
+
+4. *"Why am I getting a z-score error for multiple values? Check visualizations.py and collector.py and don't change the UI analytics."*
+
+5. *"How to remove goliath vs david correlation between bitcoin and ethereum candlestick chart as both are too far apart."*
+
+6. *"Getting these errors in backtesting. It uses mean reversion strategy, please don't change that."*
+
+### LLMs Used
+
+- **Claude Opus 4.5 (Thinking) on Google Antigravity for Backend Debugging and Optimizations.** 
+- **SWE-1 on Windsurf for minor UI Adjustments** 
+- **Gemini-3 for Planning and Project Understanding.**
+
+---
+
 ## Usage
 
 ### Starting the Application
