@@ -20,8 +20,8 @@ class Config:
     BATCH_SIZE = int(os.getenv("BATCH_SIZE", "100"))
     BATCH_INTERVAL = int(os.getenv("BATCH_INTERVAL", "5"))
     
-    # Auto-refresh interval (milliseconds)
-    REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "3000"))
+    # Auto-refresh interval (milliseconds) - 1 second for near real-time
+    REFRESH_INTERVAL = int(os.getenv("REFRESH_INTERVAL", "1000"))
     
     # Analytics defaults
     DEFAULT_TIMEFRAME = os.getenv("DEFAULT_TIMEFRAME", "1s")
@@ -33,6 +33,16 @@ class Config:
     # UI settings
     PAGE_TITLE = "Crypto Analytics Platform"
     DEFAULT_SYMBOLS = ["btcusdt", "ethusdt"]
+    
+    # Time window mapping: how much history to show for each timeframe
+    TIMEFRAME_WINDOWS = {
+        '1s': 45,      # 45 seconds
+        '5s': 120,     # 2 minutes
+        '10s': 300,    # 5 minutes
+        '30s': 600,    # 10 minutes
+        '1min': 1800,  # 30 minutes
+        '5min': 3600,  # 1 hour
+    }
     
     @classmethod
     def get_ws_url(cls, symbol: str) -> str:

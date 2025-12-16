@@ -18,7 +18,7 @@ from database import (
 from collector import BatchTickCollector
 from analytics import Analytics
 from visualizations import (
-    create_ohlc_chart, create_spread_chart, create_correlation_heatmap,
+    create_ohlc_chart, create_single_ohlc_chart, create_spread_chart, create_correlation_heatmap,
     create_backtest_chart, create_distribution_chart, create_rolling_correlation_chart
 )
 
@@ -498,7 +498,9 @@ if 'portfolio' not in st.session_state:
 if 'closed_trades' not in st.session_state:
     st.session_state.closed_trades = []  # Closed trade history
 
-st_autorefresh(interval=Config.REFRESH_INTERVAL, key="data-refresh")
+# Only auto-refresh when collecting data
+if st.session_state.get('collecting', False):
+    st_autorefresh(interval=Config.REFRESH_INTERVAL, key="data-refresh")
 
 
 def show_landing_page():
@@ -663,6 +665,7 @@ def show_dashboard():
                     st.session_state.collector.start(symbols)
                     st.session_state.collecting = True
                     st.success("Started!")
+                    st.rerun()
                 else:
                     st.warning("Already collecting!")
         
@@ -672,6 +675,7 @@ def show_dashboard():
                     st.session_state.collector.stop()
                     st.session_state.collecting = False
                     st.success("Stopped!")
+                    st.rerun()
                 else:
                     st.info("Not collecting")
         
@@ -862,232 +866,304 @@ def show_dashboard():
             for t in triggered:
                 st.write(t)
     
-    # Tabs
-    if df_resampled.empty:
-        if st.session_state.collecting:
-            st.warning(f"Collecting data... waiting for first {timeframe} candle")
-        else:
-            st.info("Click **Start** in the sidebar to begin collecting data")
-    else:
-        tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
-            "Dashboard", "OHLC Charts", "Pair Analytics", 
-            "Backtest", "Statistics", "Data Table", "Portfolio"
-        ])
+    # Tabs - Always show, handle empty states within each tab
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "Dashboard", "OHLC Charts", "Pair Analytics", 
+        "Backtest", "Statistics", "Data Table", "Portfolio"
+    ])
+    
+    with tab1:
+        st.header("Market Overview")
         
-        with tab1:
-            st.header("Market Overview")
+        stats_df = get_statistics()
+        
+        if not stats_df.empty:
+            cols = st.columns(4)
             
-            stats_df = get_statistics()
+            total_ticks = stats_df['tick_count'].sum()
+            total_symbols = len(stats_df)
+            avg_price = stats_df['avg_price'].mean()
+            total_volume = stats_df['total_volume'].sum()
             
-            if not stats_df.empty:
-                cols = st.columns(4)
-                
-                total_ticks = stats_df['tick_count'].sum()
-                total_symbols = len(stats_df)
-                avg_price = stats_df['avg_price'].mean()
-                total_volume = stats_df['total_volume'].sum()
-                
-                with cols[0]:
+            with cols[0]:
+                st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Total Ticks</div>
+                        <div class="metric-value">{total_ticks:,}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            with cols[1]:
+                st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Active Symbols</div>
+                        <div class="metric-value">{total_symbols}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            with cols[2]:
+                st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Avg Price</div>
+                        <div class="metric-value">${avg_price:,.2f}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            with cols[3]:
+                st.markdown(f"""
+                    <div class="metric-card">
+                        <div class="metric-label">Total Volume</div>
+                        <div class="metric-value">{total_volume:,.2f}</div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            # Price changes
+            st.markdown("### Price Changes (1 Hour)")
+            
+            change_cols = st.columns(len(symbols))
+            for idx, symbol in enumerate(symbols):
+                with change_cols[idx]:
+                    change_data = get_price_change(symbol, minutes=60)
+                    change_pct = change_data['change_pct']
+                    current_price = change_data['current_price']
+                    
+                    change_color = "#34d399" if change_pct >= 0 else "#f87171"
+                    change_arrow = "+" if change_pct >= 0 else ""
+                    
                     st.markdown(f"""
                         <div class="metric-card">
-                            <div class="metric-label">Total Ticks</div>
-                            <div class="metric-value">{total_ticks:,}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                with cols[1]:
-                    st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Active Symbols</div>
-                            <div class="metric-value">{total_symbols}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                with cols[2]:
-                    st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Avg Price</div>
-                            <div class="metric-value">${avg_price:,.2f}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                with cols[3]:
-                    st.markdown(f"""
-                        <div class="metric-card">
-                            <div class="metric-label">Total Volume</div>
-                            <div class="metric-value">{total_volume:,.2f}</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                # Price changes
-                st.markdown("### Price Changes (1 Hour)")
-                
-                change_cols = st.columns(len(symbols))
-                for idx, symbol in enumerate(symbols):
-                    with change_cols[idx]:
-                        change_data = get_price_change(symbol, minutes=60)
-                        change_pct = change_data['change_pct']
-                        current_price = change_data['current_price']
-                        
-                        change_color = "#34d399" if change_pct >= 0 else "#f87171"
-                        change_arrow = "+" if change_pct >= 0 else ""
-                        
-                        st.markdown(f"""
-                            <div class="metric-card">
-                                <div class="metric-label">{symbol.upper()}</div>
-                                <div class="metric-value" style="font-size: 1.8rem;">${current_price:,.2f}</div>
-                                <div style="color: {change_color}; font-size: 0.9rem; font-weight: 600; margin-top: 8px;">
-                                    {change_arrow}{change_pct:.2f}%
-                                </div>
+                            <div class="metric-label">{symbol.upper()}</div>
+                            <div class="metric-value" style="font-size: 1.8rem;">${current_price:,.2f}</div>
+                            <div style="color: {change_color}; font-size: 0.9rem; font-weight: 600; margin-top: 8px;">
+                                {change_arrow}{change_pct:.2f}%
                             </div>
-                        """, unsafe_allow_html=True)
+                        </div>
+                    """, unsafe_allow_html=True)
+        else:
+            if st.session_state.collecting:
+                st.info(f"📊 Collecting data... waiting for first {timeframe} candle")
+            else:
+                st.info("📊 Click **Start** in the sidebar to begin collecting data")
+    
+    with tab2:
+        st.header("OHLC Candlestick Charts")
         
-        with tab2:
-            st.header("OHLC Candlestick Charts")
+        if not df_resampled.empty:
+            unique_symbols = list(df_resampled['symbol'].unique())
             
-            if not df_resampled.empty:
-                fig = create_ohlc_chart(df_resampled, df_resampled['symbol'].unique())
+            # Get time window based on timeframe
+            time_window = Config.TIMEFRAME_WINDOWS.get(timeframe, 60)
+            
+            # Calculate total available data duration
+            min_time = df_resampled['datetime'].min()
+            max_time = df_resampled['datetime'].max()
+            total_seconds = int((max_time - min_time).total_seconds())
+            max_scroll = max(0, total_seconds - time_window)
+            
+            # Show current time window info
+            if time_window < 60:
+                window_text = f"{time_window}s"
+            elif time_window < 3600:
+                window_text = f"{time_window // 60}min"
+            else:
+                window_text = f"{time_window // 3600}h"
+            
+            # Status info
+            is_live = st.session_state.get('collecting', False)
+            status_text = "🔴 LIVE" if is_live else "⏸️ Paused"
+            st.caption(f"{status_text} | Window: {window_text} | Total data: {total_seconds}s")
+            
+            # Time scroll slider (only useful when not collecting or for historical view)
+            time_offset = 0
+            if max_scroll > 0:
+                time_offset = st.slider(
+                    "⏪ Scroll back in time (seconds)", 
+                    min_value=0, 
+                    max_value=max_scroll, 
+                    value=0,
+                    step=max(1, time_window // 10),
+                    key="time_scroll",
+                    help="Move slider to view historical data"
+                )
+            
+            if len(unique_symbols) >= 2:
+                # Volume toggle buttons
+                toggle_col1, toggle_col2 = st.columns(2)
+                with toggle_col1:
+                    show_vol1 = st.checkbox(f"Show {unique_symbols[0].upper()} Volume", value=True, key="vol_toggle_1")
+                with toggle_col2:
+                    show_vol2 = st.checkbox(f"Show {unique_symbols[1].upper()} Volume", value=True, key="vol_toggle_2")
+                
+                # Side-by-side charts
+                chart_col1, chart_col2 = st.columns(2)
+                
+                with chart_col1:
+                    fig1 = create_single_ohlc_chart(df_resampled, unique_symbols[0], show_volume=show_vol1, 
+                                                    time_window_seconds=time_window, time_offset_seconds=time_offset)
+                    st.plotly_chart(fig1, use_container_width=True)
+                
+                with chart_col2:
+                    fig2 = create_single_ohlc_chart(df_resampled, unique_symbols[1], show_volume=show_vol2, 
+                                                    time_window_seconds=time_window, time_offset_seconds=time_offset)
+                    st.plotly_chart(fig2, use_container_width=True)
+                
+                # Show any additional symbols below
+                if len(unique_symbols) > 2:
+                    st.markdown("### Additional Symbols")
+                    for i, sym in enumerate(unique_symbols[2:]):
+                        show_vol = st.checkbox(f"Show {sym.upper()} Volume", value=True, key=f"vol_toggle_{i+3}")
+                        fig = create_single_ohlc_chart(df_resampled, sym, show_volume=show_vol, 
+                                                       time_window_seconds=time_window, time_offset_seconds=time_offset)
+                        st.plotly_chart(fig, use_container_width=True)
+            
+            elif len(unique_symbols) == 1:
+                show_vol = st.checkbox(f"Show {unique_symbols[0].upper()} Volume", value=True, key="vol_toggle_single")
+                fig = create_single_ohlc_chart(df_resampled, unique_symbols[0], show_volume=show_vol, 
+                                               time_window_seconds=time_window, time_offset_seconds=time_offset)
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No OHLC data available")
+    
+    with tab3:
+        st.header("Pair Trading Analytics")
+        
+        unique_symbols = df_resampled['symbol'].unique() if not df_resampled.empty else []
+        if len(unique_symbols) >= 2:
+            col1, col2 = st.columns(2)
+            with col1:
+                s1 = st.selectbox("Primary Symbol", unique_symbols, key='s1')
+            with col2:
+                s2 = st.selectbox("Secondary Symbol", [s for s in unique_symbols if s != s1], key='s2')
+            
+            p1 = df_resampled[df_resampled['symbol'] == s1].set_index('datetime')['close']
+            p2 = df_resampled[df_resampled['symbol'] == s2].set_index('datetime')['close']
+            
+            common_idx = p1.index.intersection(p2.index)
+            p1 = p1.loc[common_idx]
+            p2 = p2.loc[common_idx]
+            
+            if len(p1) > rolling_window:
+                hr, intercept = Analytics.calculate_hedge_ratio(p1, p2, regression_method)
+                st.info(f"**Hedge Ratio ({regression_method.upper()}):** {hr:.4f} | **Intercept:** {intercept:.4f}")
+                
+                spread = Analytics.calculate_spread(p1, p2, hr)
+                zscore = Analytics.calculate_zscore(spread, rolling_window)
+                
+                fig = create_spread_chart(spread, zscore, s1, s2)
                 st.plotly_chart(fig)
-            else:
-                st.info("No OHLC data available")
-        
-        with tab3:
-            st.header("Pair Trading Analytics")
-            
-            unique_symbols = df_resampled['symbol'].unique()
-            if len(unique_symbols) >= 2:
-                col1, col2 = st.columns(2)
+                
+                col1, col2, col3 = st.columns(3)
                 with col1:
-                    s1 = st.selectbox("Primary Symbol", unique_symbols, key='s1')
-                with col2:
-                    s2 = st.selectbox("Secondary Symbol", [s for s in unique_symbols if s != s1], key='s2')
+                    if st.button("Run ADF Test"):
+                        adf = Analytics.adf_test(spread)
+                        if adf:
+                            with col2:
+                                st.metric("ADF Statistic", f"{adf['statistic']:.4f}")
+                            with col3:
+                                status = "Stationary" if adf['is_stationary'] else "Non-stationary"
+                                st.metric("P-Value", f"{adf['pvalue']:.4f}", delta=status)
                 
-                p1 = df_resampled[df_resampled['symbol'] == s1].set_index('datetime')['close']
-                p2 = df_resampled[df_resampled['symbol'] == s2].set_index('datetime')['close']
-                
-                common_idx = p1.index.intersection(p2.index)
-                p1 = p1.loc[common_idx]
-                p2 = p2.loc[common_idx]
-                
-                if len(p1) > rolling_window:
-                    hr, intercept = Analytics.calculate_hedge_ratio(p1, p2, regression_method)
-                    st.info(f"**Hedge Ratio ({regression_method.upper()}):** {hr:.4f} | **Intercept:** {intercept:.4f}")
-                    
-                    spread = Analytics.calculate_spread(p1, p2, hr)
-                    zscore = Analytics.calculate_zscore(spread, rolling_window)
-                    
-                    fig = create_spread_chart(spread, zscore, s1, s2)
-                    st.plotly_chart(fig)
-                    
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        if st.button("Run ADF Test"):
-                            adf = Analytics.adf_test(spread)
-                            if adf:
-                                with col2:
-                                    st.metric("ADF Statistic", f"{adf['statistic']:.4f}")
-                                with col3:
-                                    status = "Stationary" if adf['is_stationary'] else "Non-stationary"
-                                    st.metric("P-Value", f"{adf['pvalue']:.4f}", delta=status)
-                    
-                    st.subheader("Rolling Correlation")
-                    rcorr = Analytics.rolling_correlation(p1, p2, rolling_window)
-                    fig_corr = create_rolling_correlation_chart(rcorr, s1, s2, rolling_window)
-                    st.plotly_chart(fig_corr)
-                else:
-                    st.warning(f"Need at least {rolling_window} data points")
+                st.subheader("Rolling Correlation")
+                rcorr = Analytics.rolling_correlation(p1, p2, rolling_window)
+                fig_corr = create_rolling_correlation_chart(rcorr, s1, s2, rolling_window)
+                st.plotly_chart(fig_corr)
             else:
-                st.info("Add at least 2 symbols for pair analytics")
+                st.warning(f"Need at least {rolling_window} data points")
+        else:
+            st.info("Add at least 2 symbols for pair analytics")
+    
+    with tab4:
+        st.header("Mean Reversion Backtest")
         
-        with tab4:
-            st.header("Mean Reversion Backtest")
+        unique_symbols = df_resampled['symbol'].unique() if not df_resampled.empty else []
+        if len(unique_symbols) >= 2:
+            col1, col2 = st.columns(2)
+            with col1:
+                s1 = st.selectbox("Primary Symbol", unique_symbols, key='bt1')
+            with col2:
+                s2 = st.selectbox("Secondary Symbol", [s for s in unique_symbols if s != s1], key='bt2')
             
-            unique_symbols = df_resampled['symbol'].unique()
-            if len(unique_symbols) >= 2:
-                col1, col2 = st.columns(2)
-                with col1:
-                    s1 = st.selectbox("Primary Symbol", unique_symbols, key='bt1')
-                with col2:
-                    s2 = st.selectbox("Secondary Symbol", [s for s in unique_symbols if s != s1], key='bt2')
+            entry_th = st.slider("Entry Threshold (Z-Score)", 1.0, 3.0, 2.0, 0.1)
+            exit_th = st.slider("Exit Threshold (Z-Score)", -0.5, 0.5, 0.0, 0.1)
+            
+            p1 = df_resampled[df_resampled['symbol'] == s1].set_index('datetime')['close']
+            p2 = df_resampled[df_resampled['symbol'] == s2].set_index('datetime')['close']
+            
+            common_idx = p1.index.intersection(p2.index)
+            p1 = p1.loc[common_idx]
+            p2 = p2.loc[common_idx]
+            
+            if len(p1) > rolling_window:
+                hr, _ = Analytics.calculate_hedge_ratio(p1, p2, regression_method)
+                spread = Analytics.calculate_spread(p1, p2, hr)
+                zscore = Analytics.calculate_zscore(spread, rolling_window)
                 
-                entry_th = st.slider("Entry Threshold (Z-Score)", 1.0, 3.0, 2.0, 0.1)
-                exit_th = st.slider("Exit Threshold (Z-Score)", -0.5, 0.5, 0.0, 0.1)
+                trades_df, positions = Analytics.backtest_mean_reversion(spread, zscore, entry_th, exit_th)
                 
-                p1 = df_resampled[df_resampled['symbol'] == s1].set_index('datetime')['close']
-                p2 = df_resampled[df_resampled['symbol'] == s2].set_index('datetime')['close']
+                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
                 
-                common_idx = p1.index.intersection(p2.index)
-                p1 = p1.loc[common_idx]
-                p2 = p2.loc[common_idx]
+                total_trades = len(trades_df)
                 
-                if len(p1) > rolling_window:
-                    hr, _ = Analytics.calculate_hedge_ratio(p1, p2, regression_method)
-                    spread = Analytics.calculate_spread(p1, p2, hr)
-                    zscore = Analytics.calculate_zscore(spread, rolling_window)
-                    
-                    trades_df, positions = Analytics.backtest_mean_reversion(spread, zscore, entry_th, exit_th)
-                    
-                    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-                    
-                    total_trades = len(trades_df)
-                    
-                    if not trades_df.empty and 'pnl' in trades_df.columns:
-                        total_pnl = trades_df['pnl'].dropna().sum()
-                        completed_trades = trades_df['pnl'].dropna()
-                        win_rate = (len(completed_trades[completed_trades > 0]) / len(completed_trades) * 100) if len(completed_trades) > 0 else 0.0
-                        avg_pnl = completed_trades.mean() if len(completed_trades) > 0 else 0.0
-                    else:
-                        total_pnl = 0.0
-                        win_rate = 0.0
-                        avg_pnl = 0.0
-                    
-                    with col_m1:
-                        st.metric("Total Trades", total_trades)
-                    with col_m2:
-                        st.metric("Total P&L", f"{total_pnl:.4f}")
-                    with col_m3:
-                        st.metric("Win Rate", f"{win_rate:.1f}%")
-                    with col_m4:
-                        st.metric("Avg P&L", f"{avg_pnl:.4f}")
-                    
-                    st.subheader("Backtest Visualization")
-                    fig_bt = create_backtest_chart(trades_df, positions, spread)
-                    st.plotly_chart(fig_bt)
-                    
-                    if not trades_df.empty:
-                        st.subheader("Trade Log")
-                        st.dataframe(trades_df)
+                if not trades_df.empty and 'pnl' in trades_df.columns:
+                    total_pnl = trades_df['pnl'].dropna().sum()
+                    completed_trades = trades_df['pnl'].dropna()
+                    win_rate = (len(completed_trades[completed_trades > 0]) / len(completed_trades) * 100) if len(completed_trades) > 0 else 0.0
+                    avg_pnl = completed_trades.mean() if len(completed_trades) > 0 else 0.0
                 else:
-                    st.warning(f"Need at least {rolling_window} data points")
+                    total_pnl = 0.0
+                    win_rate = 0.0
+                    avg_pnl = 0.0
+                
+                with col_m1:
+                    st.metric("Total Trades", total_trades)
+                with col_m2:
+                    st.metric("Total P&L", f"{total_pnl:.4f}")
+                with col_m3:
+                    st.metric("Win Rate", f"{win_rate:.1f}%")
+                with col_m4:
+                    st.metric("Avg P&L", f"{avg_pnl:.4f}")
+                
+                st.subheader("Backtest Visualization")
+                fig_bt = create_backtest_chart(trades_df, positions, spread)
+                st.plotly_chart(fig_bt)
+                
+                if not trades_df.empty:
+                    st.subheader("Trade Log")
+                    st.dataframe(trades_df)
             else:
-                st.info("Select two different symbols to run backtest")
+                st.warning(f"Need at least {rolling_window} data points")
+        else:
+            st.info("Select two different symbols to run backtest")
+    
+    with tab5:
+        st.header("Statistical Analysis")
         
-        with tab5:
-            st.header("Statistical Analysis")
-            
-            unique_symbols = df_resampled['symbol'].unique()
-            
-            if len(unique_symbols) >= 2:
-                st.subheader("Correlation Matrix")
-                fig_heatmap = create_correlation_heatmap(df_resampled, unique_symbols)
-                st.plotly_chart(fig_heatmap)
-            
+        unique_symbols = df_resampled['symbol'].unique() if not df_resampled.empty else []
+        
+        if len(unique_symbols) >= 2:
+            st.subheader("Correlation Matrix")
+            fig_heatmap = create_correlation_heatmap(df_resampled, unique_symbols)
+            st.plotly_chart(fig_heatmap)
+        
+        if len(unique_symbols) > 0:
             st.subheader("Time Series Statistics")
             stats_data = []
             for symbol in unique_symbols:
                 sdf = df_resampled[df_resampled['symbol'] == symbol]['close']
-                stats_data.append({
-                    'Symbol': symbol.upper(),
-                    'Mean': sdf.mean(),
-                    'Std': sdf.std(),
-                    'Min': sdf.min(),
-                    'Max': sdf.max(),
-                    'Latest': sdf.iloc[-1],
-                    'Change %': ((sdf.iloc[-1] / sdf.iloc[0] - 1) * 100)
-                })
+                if len(sdf) > 0:
+                    stats_data.append({
+                        'Symbol': symbol.upper(),
+                        'Mean': sdf.mean(),
+                        'Std': sdf.std(),
+                        'Min': sdf.min(),
+                        'Max': sdf.max(),
+                        'Latest': sdf.iloc[-1],
+                        'Change %': ((sdf.iloc[-1] / sdf.iloc[0] - 1) * 100)
+                    })
             
-            stats_table = pd.DataFrame(stats_data)
-            st.dataframe(stats_table)
+            if stats_data:
+                stats_table = pd.DataFrame(stats_data)
+                st.dataframe(stats_table)
             
             st.subheader("Price Distribution")
             selected_dist_symbol = st.selectbox("Select Symbol", unique_symbols, key='dist_sym')
@@ -1095,53 +1171,58 @@ def show_dashboard():
                 dist_data = df_resampled[df_resampled['symbol'] == selected_dist_symbol]['close']
                 fig_dist = create_distribution_chart(dist_data, f"{selected_dist_symbol.upper()} Price Distribution")
                 st.plotly_chart(fig_dist)
+        else:
+            st.info("No data available for statistics")
+    
+    with tab6:
+        st.header("Recent Tick Data")
         
-        with tab6:
-            st.header("Recent Tick Data")
-            
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col1:
-                table_symbol = st.selectbox("Filter by Symbol", ["All"] + [s.upper() for s in symbols], key="table_symbol")
-            with col2:
-                limit = st.number_input("Limit", min_value=10, max_value=10000, value=100, step=10, key="table_limit")
-            with col3:
-                sort_order = st.selectbox("Sort", ["Newest First", "Oldest First"], key="sort_order")
-            
-            selected_symbol = None if table_symbol == "All" else table_symbol.lower()
-            df = get_ticks(symbol=selected_symbol, limit=limit)
-            
-            if not df.empty:
-                if sort_order == "Oldest First":
-                    df = df.sort_values('timestamp')
-                
-                st.dataframe(df, hide_index=True)
-                
-                st.markdown("### Table Summary")
-                cols = st.columns(4)
-                
-                with cols[0]:
-                    st.metric("Records", len(df))
-                with cols[1]:
-                    st.metric("Avg Price", f"${df['price'].mean():,.2f}")
-                with cols[2]:
-                    st.metric("Total Volume", f"{df['size'].sum():,.2f}")
-                with cols[3]:
-                    st.metric("Price Range", f"${df['price'].max() - df['price'].min():,.2f}")
-            else:
-                st.info("No data available")
+        col1, col2, col3 = st.columns([2, 1, 1])
+        with col1:
+            table_symbol = st.selectbox("Filter by Symbol", ["All"] + [s.upper() for s in symbols], key="table_symbol")
+        with col2:
+            limit = st.number_input("Limit", min_value=10, max_value=10000, value=100, step=10, key="table_limit")
+        with col3:
+            sort_order = st.selectbox("Sort", ["Newest First", "Oldest First"], key="sort_order")
         
-        with tab7:
-            st.header("Portfolio & P&L Tracker")
+        selected_symbol = None if table_symbol == "All" else table_symbol.lower()
+        df = get_ticks(symbol=selected_symbol, limit=limit)
+        
+        if not df.empty:
+            if sort_order == "Oldest First":
+                df = df.sort_values('timestamp')
             
-            # Get current prices for each symbol
-            current_prices = {}
-            for sym in unique_symbols:
-                sdf = df_resampled[df_resampled['symbol'] == sym]
-                if not sdf.empty:
-                    current_prices[sym] = sdf.iloc[-1]['close']
+            st.dataframe(df, hide_index=True)
             
-            # Open Position Form
-            st.subheader("Open New Position")
+            st.markdown("### Table Summary")
+            cols = st.columns(4)
+            
+            with cols[0]:
+                st.metric("Records", len(df))
+            with cols[1]:
+                st.metric("Avg Price", f"${df['price'].mean():,.2f}")
+            with cols[2]:
+                st.metric("Total Volume", f"{df['size'].sum():,.2f}")
+            with cols[3]:
+                st.metric("Price Range", f"${df['price'].max() - df['price'].min():,.2f}")
+        else:
+            st.info("No data available")
+    
+    with tab7:
+        st.header("Portfolio & P&L Tracker")
+        
+        # Get current prices for each symbol
+        unique_symbols = df_resampled['symbol'].unique() if not df_resampled.empty else []
+        current_prices = {}
+        for sym in unique_symbols:
+            sdf = df_resampled[df_resampled['symbol'] == sym]
+            if not sdf.empty:
+                current_prices[sym] = sdf.iloc[-1]['close']
+        
+        # Open Position Form
+        st.subheader("Open New Position")
+        
+        if len(unique_symbols) > 0:
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -1170,117 +1251,119 @@ def show_dashboard():
                     st.rerun()
                 else:
                     st.error("No price data available for this symbol")
+        else:
+            st.info("Start data collection to open positions")
+        
+        st.markdown("---")
+        
+        # Active Positions with Live P&L
+        st.subheader("Active Positions")
+        
+        if st.session_state.portfolio:
+            total_unrealized_pnl = 0
+            total_position_value = 0
             
-            st.markdown("---")
+            for i, pos in enumerate(st.session_state.portfolio):
+                current_price = current_prices.get(pos['symbol'], pos['entry_price'])
+                
+                # Calculate P&L
+                if pos['side'] == 'LONG':
+                    pnl = (current_price - pos['entry_price']) * pos['quantity']
+                    pnl_pct = ((current_price / pos['entry_price']) - 1) * 100
+                else:  # SHORT
+                    pnl = (pos['entry_price'] - current_price) * pos['quantity']
+                    pnl_pct = ((pos['entry_price'] / current_price) - 1) * 100
+                
+                current_value = pos['quantity'] * current_price
+                total_unrealized_pnl += pnl
+                total_position_value += current_value
+                
+                pnl_color = "#10b981" if pnl >= 0 else "#ef4444"
+                
+                col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 2, 1])
+                
+                with col1:
+                    st.markdown(f"**{pos['symbol'].upper()}** ({pos['side']})")
+                    st.caption(f"Entry: ${pos['entry_price']:,.2f} | Qty: {pos['quantity']:.6f}")
+                
+                with col2:
+                    st.metric("Current", f"${current_price:,.2f}")
+                
+                with col3:
+                    st.metric("Value", f"${current_value:,.2f}")
+                
+                with col4:
+                    st.markdown(f"<div style='color: {pnl_color}; font-size: 1.2rem; font-weight: 700;'>${pnl:+,.2f} ({pnl_pct:+.2f}%)</div>", unsafe_allow_html=True)
+                
+                with col5:
+                    if st.button("Close", key=f"close_{i}"):
+                        # Close position
+                        closed_pos = pos.copy()
+                        closed_pos['exit_price'] = current_price
+                        closed_pos['exit_time'] = datetime.now()
+                        closed_pos['pnl'] = pnl
+                        closed_pos['pnl_pct'] = pnl_pct
+                        st.session_state.closed_trades.append(closed_pos)
+                        st.session_state.portfolio.pop(i)
+                        st.success(f"Closed {pos['symbol'].upper()} for ${pnl:+,.2f}")
+                        st.rerun()
+                
+                st.markdown("---")
             
-            # Active Positions with Live P&L
-            st.subheader("Active Positions")
+            # Portfolio Summary
+            st.subheader("Portfolio Summary")
+            sum_cols = st.columns(4)
             
-            if st.session_state.portfolio:
-                total_unrealized_pnl = 0
-                total_position_value = 0
-                
-                for i, pos in enumerate(st.session_state.portfolio):
-                    current_price = current_prices.get(pos['symbol'], pos['entry_price'])
-                    
-                    # Calculate P&L
-                    if pos['side'] == 'LONG':
-                        pnl = (current_price - pos['entry_price']) * pos['quantity']
-                        pnl_pct = ((current_price / pos['entry_price']) - 1) * 100
-                    else:  # SHORT
-                        pnl = (pos['entry_price'] - current_price) * pos['quantity']
-                        pnl_pct = ((pos['entry_price'] / current_price) - 1) * 100
-                    
-                    current_value = pos['quantity'] * current_price
-                    total_unrealized_pnl += pnl
-                    total_position_value += current_value
-                    
-                    pnl_color = "#10b981" if pnl >= 0 else "#ef4444"
-                    
-                    col1, col2, col3, col4, col5 = st.columns([2, 1, 1, 2, 1])
-                    
-                    with col1:
-                        st.markdown(f"**{pos['symbol'].upper()}** ({pos['side']})")
-                        st.caption(f"Entry: ${pos['entry_price']:,.2f} | Qty: {pos['quantity']:.6f}")
-                    
-                    with col2:
-                        st.metric("Current", f"${current_price:,.2f}")
-                    
-                    with col3:
-                        st.metric("Value", f"${current_value:,.2f}")
-                    
-                    with col4:
-                        st.markdown(f"<div style='color: {pnl_color}; font-size: 1.2rem; font-weight: 700;'>${pnl:+,.2f} ({pnl_pct:+.2f}%)</div>", unsafe_allow_html=True)
-                    
-                    with col5:
-                        if st.button("Close", key=f"close_{i}"):
-                            # Close position
-                            closed_pos = pos.copy()
-                            closed_pos['exit_price'] = current_price
-                            closed_pos['exit_time'] = datetime.now()
-                            closed_pos['pnl'] = pnl
-                            closed_pos['pnl_pct'] = pnl_pct
-                            st.session_state.closed_trades.append(closed_pos)
-                            st.session_state.portfolio.pop(i)
-                            st.success(f"Closed {pos['symbol'].upper()} for ${pnl:+,.2f}")
-                            st.rerun()
-                    
-                    st.markdown("---")
-                
-                # Portfolio Summary
-                st.subheader("Portfolio Summary")
-                sum_cols = st.columns(4)
-                
-                with sum_cols[0]:
-                    st.metric("Open Positions", len(st.session_state.portfolio))
-                with sum_cols[1]:
-                    st.metric("Total Value", f"${total_position_value:,.2f}")
-                with sum_cols[2]:
-                    pnl_delta = "profit" if total_unrealized_pnl >= 0 else "loss"
-                    st.metric("Unrealized P&L", f"${total_unrealized_pnl:+,.2f}", delta=pnl_delta)
-                with sum_cols[3]:
-                    # Calculate realized P&L from closed trades
-                    realized_pnl = sum(t.get('pnl', 0) for t in st.session_state.closed_trades)
-                    st.metric("Realized P&L", f"${realized_pnl:+,.2f}")
-                
-            else:
-                st.info("No open positions. Open a position above to start tracking.")
+            with sum_cols[0]:
+                st.metric("Open Positions", len(st.session_state.portfolio))
+            with sum_cols[1]:
+                st.metric("Total Value", f"${total_position_value:,.2f}")
+            with sum_cols[2]:
+                pnl_delta = "profit" if total_unrealized_pnl >= 0 else "loss"
+                st.metric("Unrealized P&L", f"${total_unrealized_pnl:+,.2f}", delta=pnl_delta)
+            with sum_cols[3]:
+                # Calculate realized P&L from closed trades
+                realized_pnl = sum(t.get('pnl', 0) for t in st.session_state.closed_trades)
+                st.metric("Realized P&L", f"${realized_pnl:+,.2f}")
             
-            # Closed Trades History
-            if st.session_state.closed_trades:
-                st.subheader("Trade History")
-                
-                trades_data = []
-                for t in st.session_state.closed_trades:
-                    trades_data.append({
-                        'Symbol': t['symbol'].upper(),
-                        'Side': t['side'],
-                        'Entry': f"${t['entry_price']:,.2f}",
-                        'Exit': f"${t['exit_price']:,.2f}",
-                        'Size': f"${t['size']:,.2f}",
-                        'P&L': f"${t['pnl']:+,.2f}",
-                        'Return': f"{t['pnl_pct']:+.2f}%"
-                    })
-                
-                st.dataframe(pd.DataFrame(trades_data), hide_index=True)
-                
-                # Trade stats
-                total_trades = len(st.session_state.closed_trades)
-                winning_trades = len([t for t in st.session_state.closed_trades if t['pnl'] > 0])
-                win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
-                
-                stat_cols = st.columns(3)
-                with stat_cols[0]:
-                    st.metric("Total Trades", total_trades)
-                with stat_cols[1]:
-                    st.metric("Win Rate", f"{win_rate:.1f}%")
-                with stat_cols[2]:
-                    total_pnl = sum(t['pnl'] for t in st.session_state.closed_trades)
-                    st.metric("Total Realized", f"${total_pnl:+,.2f}")
-                
-                if st.button("Clear Trade History", key="clear_history"):
-                    st.session_state.closed_trades = []
-                    st.rerun()
+        else:
+            st.info("No open positions. Open a position above to start tracking.")
+        
+        # Closed Trades History
+        if st.session_state.closed_trades:
+            st.subheader("Trade History")
+            
+            trades_data = []
+            for t in st.session_state.closed_trades:
+                trades_data.append({
+                    'Symbol': t['symbol'].upper(),
+                    'Side': t['side'],
+                    'Entry': f"${t['entry_price']:,.2f}",
+                    'Exit': f"${t['exit_price']:,.2f}",
+                    'Size': f"${t['size']:,.2f}",
+                    'P&L': f"${t['pnl']:+,.2f}",
+                    'Return': f"{t['pnl_pct']:+.2f}%"
+                })
+            
+            st.dataframe(pd.DataFrame(trades_data), hide_index=True)
+            
+            # Trade stats
+            total_trades = len(st.session_state.closed_trades)
+            winning_trades = len([t for t in st.session_state.closed_trades if t['pnl'] > 0])
+            win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0
+            
+            stat_cols = st.columns(3)
+            with stat_cols[0]:
+                st.metric("Total Trades", total_trades)
+            with stat_cols[1]:
+                st.metric("Win Rate", f"{win_rate:.1f}%")
+            with stat_cols[2]:
+                total_pnl = sum(t['pnl'] for t in st.session_state.closed_trades)
+                st.metric("Total Realized", f"${total_pnl:+,.2f}")
+            
+            if st.button("Clear Trade History", key="clear_history"):
+                st.session_state.closed_trades = []
+                st.rerun()
 
 
 # Main app routing

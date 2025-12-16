@@ -18,30 +18,34 @@ class Analytics:
     @staticmethod
     def resample_ohlcv(df: pd.DataFrame, timeframe: str = '1min') -> pd.DataFrame:
         """
-        Resample tick data to OHLCV candles
+        Resample tick data to OHLCV candles with gap filling for ALL timeframes
         
         Args:
             df: DataFrame with columns ['symbol', 'timestamp', 'price', 'size']
-            timeframe: Resampling period (e.g., '1min', '5min', '1H')
+            timeframe: Resampling period (e.g., '1s', '5s', '1min', '5min')
         
         Returns:
-            DataFrame with OHLCV data
+            DataFrame with OHLCV data (gaps filled with flat candles)
         """
         if df.empty:
             return pd.DataFrame()
         
+        # Convert timeframe to pandas frequency format
+        freq_map = {
+            '1s': '1S', '5s': '5S', '10s': '10S', '30s': '30S',
+            '1min': '1T', '5min': '5T', '15min': '15T', '1h': '1H', '1H': '1H'
+        }
+        pandas_freq = freq_map.get(timeframe, timeframe)
+        
         try:
             df = df.copy()
-            # Filter out invalid prices
             df = df[df['price'] > 0]
             if df.empty:
                 return pd.DataFrame()
             
-            # Convert timestamp to datetime - handle both ISO strings and epoch ms
-            if df['timestamp'].dtype == 'object':  # String timestamps (ISO format)
-                # Use format='ISO8601' to handle variations in ISO format
+            if df['timestamp'].dtype == 'object':
                 df['datetime'] = pd.to_datetime(df['timestamp'], format='ISO8601')
-            else:  # Numeric timestamps (epoch ms)
+            else:
                 df['datetime'] = pd.to_datetime(df['timestamp'], unit='ms')
             
             df = df.set_index('datetime')
@@ -52,19 +56,37 @@ class Analytics:
                 if sdf.empty:
                     continue
                 
-                # Resample price to OHLC
-                price = sdf['price'].resample(timeframe).ohlc()
+                # Resample with pandas frequency
+                price = sdf['price'].resample(pandas_freq).ohlc()
                 if price.empty:
                     continue
                 
-                # Ensure low is valid
                 price['low'] = price['low'].where(price['low'] > 0)
+                volume = sdf['size'].resample(pandas_freq).sum().rename('volume')
+                result = price.join(volume)
                 
-                # Resample volume
-                volume = sdf['size'].resample(timeframe).sum().rename('volume')
+                # Create complete continuous time range for gap filling
+                if not result.empty:
+                    full_range = pd.date_range(
+                        start=result.index.min(),
+                        end=result.index.max(),
+                        freq=pandas_freq
+                    )
+                    result = result.reindex(full_range)
+                    
+                    # Forward-fill close price for gaps
+                    result['close'] = result['close'].ffill()
+                    
+                    # For gaps: create flat candles (OHLC = Close, Volume = 0)
+                    gap_mask = result['open'].isna()
+                    result.loc[gap_mask, 'open'] = result.loc[gap_mask, 'close']
+                    result.loc[gap_mask, 'high'] = result.loc[gap_mask, 'close']
+                    result.loc[gap_mask, 'low'] = result.loc[gap_mask, 'close']
+                    result.loc[gap_mask, 'volume'] = 0
+                    
+                    # Drop any remaining NaN rows (at start before first trade)
+                    result = result.dropna()
                 
-                # Combine
-                result = price.join(volume).dropna()
                 if result.empty:
                     continue
                 

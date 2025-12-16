@@ -170,6 +170,140 @@ def create_ohlc_chart(df: pd.DataFrame, symbols: list) -> go.Figure:
     return fig
 
 
+def create_single_ohlc_chart(df: pd.DataFrame, symbol: str, show_volume: bool = True, 
+                              time_window_seconds: int = None, time_offset_seconds: int = 0) -> go.Figure:
+    """
+    Create OHLC candlestick chart for a single symbol
+    
+    Args:
+        df: DataFrame with OHLC data
+        symbol: Symbol to plot
+        show_volume: Whether to show volume subplot
+        time_window_seconds: Optional, show N seconds window of data
+        time_offset_seconds: Scroll offset - how many seconds back from latest
+    
+    Returns:
+        Plotly figure
+    """
+    sdf = df[df['symbol'] == symbol].sort_values('datetime')
+    
+    # Apply time window and offset for scrolling
+    if time_window_seconds and not sdf.empty:
+        latest_time = sdf['datetime'].max()
+        # Apply offset (scroll back in time)
+        end_time = latest_time - pd.Timedelta(seconds=time_offset_seconds)
+        start_time = end_time - pd.Timedelta(seconds=time_window_seconds)
+        sdf = sdf[(sdf['datetime'] >= start_time) & (sdf['datetime'] <= end_time)]
+    
+    if sdf.empty:
+        fig = go.Figure()
+        fig.update_layout(
+            title=f"{symbol.upper()} - No Data",
+            template='plotly_dark',
+            paper_bgcolor=COLORS['background'],
+            plot_bgcolor=COLORS['paper'],
+        )
+        return fig
+    
+    if show_volume:
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.03,
+            row_heights=[0.75, 0.25],
+        )
+    else:
+        fig = go.Figure()
+    
+    # Candlestick chart
+    fig.add_trace(
+        go.Candlestick(
+            x=sdf['datetime'],
+            open=sdf['open'],
+            high=sdf['high'],
+            low=sdf['low'],
+            close=sdf['close'],
+            name=symbol.upper(),
+            increasing_line_color=COLORS['secondary'],
+            decreasing_line_color=COLORS['danger'],
+            increasing_fillcolor=COLORS['secondary'],
+            decreasing_fillcolor=COLORS['danger'],
+        ),
+        row=1 if show_volume else None,
+        col=1 if show_volume else None,
+    )
+    
+    # Volume bars
+    if show_volume:
+        colors = [COLORS['secondary'] if sdf['close'].iloc[i] >= sdf['open'].iloc[i] 
+                  else COLORS['danger'] for i in range(len(sdf))]
+        
+        fig.add_trace(
+            go.Bar(
+                x=sdf['datetime'],
+                y=sdf['volume'],
+                name='Volume',
+                marker_color=colors,
+                opacity=0.7,
+            ),
+            row=2, col=1,
+        )
+    
+    # Calculate x-axis range
+    x_range = None
+    if not sdf.empty:
+        x_min = sdf['datetime'].min()
+        x_max = sdf['datetime'].max()
+        time_span = (x_max - x_min).total_seconds()
+        padding = pd.Timedelta(seconds=time_span * 0.05) if time_span > 0 else pd.Timedelta(seconds=60)
+        x_range = [x_min - padding, x_max + padding]
+    
+    # Calculate Y-axis range with TIGHT padding for visible candle bodies
+    # Goal: Candles should take up ~80% of vertical height
+    y_range = None
+    if not sdf.empty:
+        price_min = sdf['low'].min()
+        price_max = sdf['high'].max()
+        price_range = price_max - price_min
+        
+        # If no price movement, create artificial range around current price
+        if price_range == 0 or price_range < 0.01:
+            center = (price_min + price_max) / 2
+            # Create ~0.01% range for flat prices
+            price_range = center * 0.0001
+            price_min = center - price_range / 2
+            price_max = center + price_range / 2
+        
+        # Tight padding: 10% of price range on each side
+        # This makes candles occupy ~80% of vertical height
+        y_padding = price_range * 0.1
+        y_range = [price_min - y_padding, price_max + y_padding]
+    
+    # Layout
+    fig.update_layout(
+        title=f"{symbol.upper()}",
+        height=450,
+        template='plotly_dark',
+        paper_bgcolor=COLORS['background'],
+        plot_bgcolor=COLORS['paper'],
+        font=dict(color=COLORS['text'], family='Inter, sans-serif'),
+        xaxis_rangeslider_visible=False,
+        showlegend=False,
+        margin=dict(l=50, r=50, t=50, b=30),
+    )
+    
+    # Update axes with calculated ranges - FORCE the Y range
+    if x_range:
+        fig.update_xaxes(range=x_range, gridcolor=COLORS['grid'])
+    
+    # Explicitly set tight Y-axis range
+    if y_range:
+        fig.update_yaxes(range=y_range, gridcolor=COLORS['grid'], autorange=False, fixedrange=False)
+    else:
+        fig.update_yaxes(gridcolor=COLORS['grid'], autorange=True)
+    
+    return fig
+
 def create_spread_chart(spread: pd.Series, zscore: pd.Series, 
                        s1: str, s2: str) -> go.Figure:
     """
