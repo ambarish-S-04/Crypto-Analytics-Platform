@@ -80,7 +80,7 @@ crypto-analytics-platform/
 
 ### System Flowchart
 
-![Architecture Flowchart](architecture_flowchart.png)
+![Architecture Flowchart](Flowchart.png)
 
 ---
 
