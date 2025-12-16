@@ -11,50 +11,41 @@ A professional-grade quantitative analytics platform for real-time crypto market
 ## Features
 
 ### Real-Time Data Ingestion
-- **WebSocket Streaming** - Live tick data from Binance Futures
-- **Multi-Symbol Support** - Track multiple trading pairs simultaneously
-- **Auto-Reconnection** - Handles network interruptions gracefully
-- **Batch Processing** - Efficient database writes with configurable batch sizes
+- **WebSocket Streaming** - Live tick data from Binance Futures with auto-reconnection
+- **Multi-Symbol Support** - Track multiple trading pairs with batch database writes
 
 ### OHLC Aggregation
 - **On-the-Fly Conversion** - Tick data to candlesticks in real-time
-- **Multiple Timeframes** - 1s, 5s, 10s, 30s, 1min, 5min
-- **Volume Aggregation** - Accurate volume tracking per candle
+- **Multiple Timeframes** - 1s, 5s, 10s, 30s, 1min, 5min with volume aggregation
 
 ### Pair Trading Analytics
-- **Hedge Ratio Calculation** - OLS and Huber regression methods
-- **Spread Analysis** - Real-time spread computation
-- **Z-Score Calculation** - Rolling z-score with configurable window
-- **Correlation Analysis** - Rolling and static correlation matrices
-- **Cointegration Testing** - Augmented Dickey-Fuller (ADF) test
+- **Hedge Ratio & Spread** - OLS/Huber regression with real-time spread computation
+- **Z-Score & Cointegration** - Rolling z-score and ADF stationarity testing
 
 ### Visualization Dashboard
-- **OHLC Candlestick Charts** - Dual Y-axis for comparing assets
-- **Spread & Z-Score Plots** - Interactive Plotly charts
-- **Correlation Heatmaps** - Visual correlation matrices
-- **Distribution Charts** - Price and return distributions
-- **Dark Theme UI** - Professional aesthetic with glassmorphism effects
+- **Interactive Charts** - OHLC candlesticks, spread/z-score plots, correlation heatmaps
+- **Dark Theme UI** - Professional aesthetic with Plotly visualizations
 
 ### Backtesting Engine
-- **Mean-Reversion Strategy** - Z-score based entry/exit signals
-- **Configurable Thresholds** - Adjustable entry and exit levels
-- **Trade Log** - Detailed entry/exit times with P&L
-- **Performance Metrics** - Win rate, total P&L visualization
+- **Mean-Reversion Strategy** - Z-score based entry/exit with configurable thresholds
+- **Trade Log & Metrics** - Detailed P&L tracking with win rate statistics
 
 ### Portfolio & P&L Tracker
-- **Paper Trading** - Simulate LONG/SHORT positions
-- **Real-Time P&L** - Live unrealized profit/loss updates
-- **Trade History** - Complete log of closed trades
-- **Win Rate Statistics** - Performance tracking
+- **Paper Trading** - Simulate LONG/SHORT positions with real-time P&L
+- **Trade History** - Complete log with performance tracking
 
 ### Alert System
-- **Price Alerts** - Threshold-based notifications
-- **Z-Score Alerts** - Pair trading signal alerts
-- **Real-Time Monitoring** - Continuous alert checking
+- **Price & Z-Score Alerts** - Threshold-based notifications for trading signals
 
 ---
 
 ## Architecture
+
+### System Flowchart
+
+![Architecture Flowchart](Flowchart.png)
+
+### Project Structure
 
 ```
 crypto-analytics-platform/
@@ -77,10 +68,6 @@ crypto-analytics-platform/
 | **Clean Interfaces** | Abstract `DataFeed` base class for pluggable sources |
 | **Extensibility** | Add new analytics/charts without modifying existing code |
 | **Configuration** | Centralized `config.py` with environment variable support |
-
-### System Flowchart
-
-![Architecture Flowchart](Flowchart.png)
 
 ---
 
@@ -308,17 +295,3 @@ class Analytics:
 - **Buffer Management** - Configurable in-memory buffer size
 - **Lazy Loading** - Charts render only when tab is active
 
----
-
-## License
-
-MIT License - See LICENSE file for details.
-
----
-
-## Author
-
-Developed as a Quantitative Developer Assignment demonstrating:
-- Real-time data streaming
-- Statistical arbitrage analytics
-- Modular, scalable architecture
