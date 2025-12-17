@@ -515,9 +515,24 @@ def show_landing_page():
     # Top navigation with Launch Dashboard button
     col1, col2, col3 = st.columns([2, 1, 1])
     with col3:
-        if st.button("Launch Dashboard →", type="primary", key="enter_dashboard_top"):
-            st.session_state.page = 'dashboard'
-            st.rerun()
+        st.markdown("""
+            <div style="text-align: right;">
+                <a href="/?page=dashboard" target="_blank" style="
+                    display: inline-block;
+                    text-decoration: none;
+                    background: linear-gradient(135deg, #6366f1 0%, #10b981 100%);
+                    color: white;
+                    padding: 8px 16px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 0.9rem;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+                    transition: transform 0.2s;
+                ">
+                    Launch Dashboard &rarr;
+                </a>
+            </div>
+        """, unsafe_allow_html=True)
     
     # Hero Section
     st.markdown("""
@@ -625,9 +640,26 @@ def show_landing_page():
     st.markdown("<div class='cta-container'>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1.2, 1, 1.2])
     with col2:
-        if st.button("Launch Dashboard", type="primary", key="enter_dashboard"):
-            st.session_state.page = 'dashboard'
-            st.rerun()
+        # Link button to open dashboard in new tab
+        st.markdown("""
+            <div style="text-align: center;">
+                <a href="/?page=dashboard" target="_blank" style="
+                    display: inline-block;
+                    text-decoration: none;
+                    background: linear-gradient(135deg, #6366f1 0%, #10b981 100%);
+                    color: white;
+                    padding: 12px 28px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 1.1rem;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+                    transition: transform 0.2s;
+                ">
+                    Launch Dashboard 🚀
+                </a>
+            </div>
+        """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -1432,6 +1464,12 @@ def show_dashboard():
 
 
 # Main app routing
+# Main app routing
+# Check query params for direct dashboard access
+query_params = st.query_params
+if query_params.get("page") == "dashboard":
+    st.session_state.page = 'dashboard'
+
 if st.session_state.page == 'landing':
     show_landing_page()
 else:

@@ -368,7 +368,7 @@ def create_spread_chart(spread: pd.Series, zscore: pd.Series,
     
     # Update axes
     fig.update_xaxes(title_text="Time", row=2, col=1, gridcolor=COLORS['grid'])
-    fig.update_yaxes(title_text="Spread", row=1, col=1, gridcolor=COLORS['grid'])
+    fig.update_yaxes(title_text="Spread", row=1, col=1, gridcolor=COLORS['grid'], autorange=True)
     fig.update_yaxes(title_text="Z-Score", row=2, col=1, gridcolor=COLORS['grid'])
     
     # Update layout
